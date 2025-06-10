@@ -1,20 +1,21 @@
 package worker
 
 import (
-	"fmt"
 	"sync"
 	"time"
 )
 
-// The structure represents a Worker and contains information about it
+// Worker process
 type Worker struct {
 	ID          int
 	JobChannel  chan string
 	QuitChannel chan struct{}
 	Wg          *sync.WaitGroup
+	CurrentTask string
+	mu          sync.Mutex
 }
 
-// NewWorker create new Worker (Fabric)
+// NewWorker creates a new worker instance
 func NewWorker(id int, jobChannel chan string, wg *sync.WaitGroup) *Worker {
 	return &Worker{
 		ID:          id,
@@ -24,7 +25,7 @@ func NewWorker(id int, jobChannel chan string, wg *sync.WaitGroup) *Worker {
 	}
 }
 
-// Start start worker and use imitation for work
+// Start begin processing jobs in goroutine
 func (w *Worker) Start() {
 	w.Wg.Add(1)
 
@@ -34,17 +35,27 @@ func (w *Worker) Start() {
 		for {
 			select {
 			case job := <-w.JobChannel:
-				fmt.Printf("Worker %d work with %s\n", w.ID, job)
-				time.Sleep(100 * time.Millisecond) // Just imitation for worker
+				// Update current task
+				w.mu.Lock()
+				w.CurrentTask = job
+				w.mu.Unlock()
+
+				// Work imitation
+				time.Sleep(4 * time.Second)
+
+				// Clear task
+				w.mu.Lock()
+				w.CurrentTask = ""
+				w.mu.Unlock()
+
 			case <-w.QuitChannel:
-				fmt.Printf("Worker %d stopping\n", w.ID)
-				return
+				return // Exit goroutine
 			}
 		}
 	}()
 }
 
-// Stop stop worker
+// Stop signals the worker to terminate
 func (w *Worker) Stop() {
 	close(w.QuitChannel)
 }

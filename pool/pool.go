@@ -7,7 +7,7 @@ import (
 	workers "vk-go-test/worker"
 )
 
-// The structure represents a WorkerPool and contains information about it
+// WorkerPool manages a collection of workers and jobs distribution
 type WorkerPool struct {
 	Workers    map[int]*workers.Worker
 	JobChannel chan string
@@ -16,15 +16,14 @@ type WorkerPool struct {
 	Mu         sync.Mutex
 }
 
-// NewWorkerPool create new PoolWorker with initialWorkers (Fabric)
+// NewWorkerPool creates new pool with initital workers
 func NewWorkerPool(initialWorkers int) *WorkerPool {
 	pool := &WorkerPool{
 		Workers:    make(map[int]*workers.Worker),
-		JobChannel: make(chan string, 100),
+		JobChannel: make(chan string, 100), // buffer for 100 jobs
 		NextID:     1,
 	}
 
-	// Initial Pool
 	for range initialWorkers {
 		pool.AddWorker()
 	}
@@ -32,7 +31,7 @@ func NewWorkerPool(initialWorkers int) *WorkerPool {
 	return pool
 }
 
-// AddWorker add new Worker in WorkerPool
+// AddWorker creates and starts a new worker
 func (p *WorkerPool) AddWorker() {
 	p.Mu.Lock()
 	defer p.Mu.Unlock()
@@ -44,42 +43,60 @@ func (p *WorkerPool) AddWorker() {
 	p.Workers[id] = worker
 	worker.Start()
 
-	fmt.Printf("Worker %d is added\n", id)
+	fmt.Printf("Worker %d added\n> ", id)
 }
 
-// RemoveWorker remove Worker from WorkerPool
+// RemoveWorker stops and removes a worker
 func (p *WorkerPool) RemoveWorker() {
 	p.Mu.Lock()
 	defer p.Mu.Unlock()
 
 	if len(p.Workers) == 0 {
-		fmt.Println("No workers to remove!")
+		fmt.Println("No workers to remove")
 		return
 	}
 
 	for id, worker := range p.Workers {
 		worker.Stop()
 		delete(p.Workers, id)
-
-		fmt.Printf("Worker %d is deleted\n", id)
+		fmt.Printf("Worker %d removed\n> ", id)
 		return
 	}
 }
 
-// SubmitJob submit job into channel
+// SubmitJob sends job to the worker pool
 func (p *WorkerPool) SubmitJob(job string) {
 	p.JobChannel <- job
 }
 
-// WorkerCount return number of workers in WorkerPool
+// WorkerCount return current number of workers
 func (p *WorkerPool) WorkerCount() int {
 	p.Mu.Lock()
 	defer p.Mu.Unlock()
-
 	return len(p.Workers)
 }
 
-// Stop stop WorkerPool if it has no jobs
+// PrintStatus display current tasks assignment
+func (p *WorkerPool) PrintStatus() {
+	p.Mu.Lock()
+	defer p.Mu.Unlock()
+
+	if len(p.Workers) == 0 {
+		fmt.Println("No active workers")
+		return
+	}
+
+	fmt.Println("Current worker tasks:")
+	for id, worker := range p.Workers {
+		if worker.CurrentTask != "" {
+			fmt.Printf("Worker %d: %s\n", id, worker.CurrentTask)
+		} else {
+			fmt.Printf("Worker %d: idle\n", id)
+		}
+	}
+}
+
+// Stop all workers for exiting
 func (p *WorkerPool) Stop() {
 	p.Mu.Lock()
 	defer p.Mu.Unlock()
@@ -88,8 +105,6 @@ func (p *WorkerPool) Stop() {
 		worker.Stop()
 	}
 
-	// WAIT!
 	p.Wg.Wait()
-
 	close(p.JobChannel)
 }

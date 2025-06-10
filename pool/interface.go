@@ -6,5 +6,6 @@ type WorkerPoolAction interface {
 	RemoveWorker()
 	SubmitJob(job string)
 	WorkerCount() int
+	PrintStatus()
 	Stop()
 }
